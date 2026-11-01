@@ -1,0 +1,63 @@
+{
+    "name": "@mandate-game/steamworks-electron",
+    "version": "0.5.0",
+    "description": "Steamworks SDK bindings for Electron and Node.js. Maintained fork of steamworks.js (a greenworks alternative) with TypeScript types, built on steamworks-rs and napi-rs.",
+    "keywords": [
+        "steam",
+        "steamworks",
+        "electron",
+        "nodejs",
+        "greenworks",
+        "steamworks.js"
+    ],
+    "license": "MIT",
+    "main": "index.js",
+    "types": "index.d.ts",
+    "engines": {
+        "node": ">=20.17.0"
+    },
+    "napi": {
+        "binaryName": "steamworksjs",
+        "targets": [
+            "x86_64-pc-windows-msvc",
+            "x86_64-unknown-linux-gnu",
+            "x86_64-apple-darwin",
+            "aarch64-apple-darwin"
+        ]
+    },
+    "files": [
+        "dist/**/*.node",
+        "index.js",
+        "*.d.ts",
+        "README.md",
+        "LICENSE",
+        "NOTICE"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "registry": "https://registry.npmjs.org/"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mandate-game/steamworks-electron.git"
+    },
+    "bugs": {
+        "url": "https://github.com/mandate-game/steamworks-electron/issues"
+    },
+    "homepage": "https://github.com/mandate-game/steamworks-electron#readme",
+    "scripts": {
+        "build": "npm run types && node build.js --release",
+        "build:debug": "node build.js",
+        "types": "tsc index.js --allowJs --declaration --emitDeclarationOnly --module commonjs --target es2022",
+        "test": "node --test test/sdk-path.test.js",
+        "check:no-valve": "node scripts/check-no-valve-files.js",
+        "typecheck": "npm run types && cd test/typescript && npm install && npm run compile"
+    },
+    "dependencies": {
+        "@types/node": "^22.18.0"
+    },
+    "devDependencies": {
+        "@napi-rs/cli": "3.10.9",
+        "typescript": "5.9.3"
+    }
+}

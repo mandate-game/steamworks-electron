@@ -1,0 +1,16 @@
+{
+    "name": "steamworks-electron-test",
+    "private": true,
+    "dependencies": {
+        "@mandate-game/steamworks-electron": "file:../.."
+    },
+    "devDependencies": {
+        "electron": "45.2.1",
+        "electron-packager": "17.1.2"
+    },
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "build": "electron-packager . --overwrite"
+    }
+}

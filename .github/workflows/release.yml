@@ -1,0 +1,163 @@
+name: Release
+
+# Prepared for npm publish. Do not run until NPM_TOKEN is configured and
+# package.json version is the version you intend to publish.
+#
+# Required secrets:
+#   NPM_TOKEN       — npm automation token that can publish @mandate-game/steamworks-electron
+#   STEAM_SDK_URL   — URL of the Valve Steamworks SDK zip (https://partner.steamgames.com/doc/sdk).
+#                     The zip is not stored in this repository. A pre-authenticated URL is fine.
+# Optional:
+#   STEAM_SDK_LOCATION is not a secret; self-hosted runners can set it as an env var instead.
+
+on:
+    workflow_dispatch:
+    push:
+        tags: ['v*']
+
+permissions:
+    contents: read
+
+jobs:
+    build-linux-windows:
+        name: Build Linux and Windows
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: x86_64-pc-windows-msvc, x86_64-unknown-linux-gnu
+
+            - uses: Swatinem/rust-cache@v2
+
+            - name: Require the Steamworks SDK
+              env:
+                  STEAM_SDK_URL: ${{ secrets.STEAM_SDK_URL }}
+              run: |
+                  if [ -z "${STEAM_SDK_URL}" ] && [ -z "${STEAM_SDK_LOCATION:-}" ]; then
+                      echo "::error::Refusing to publish without the Steamworks SDK. Set the STEAM_SDK_URL secret to Valve's SDK zip. This repository does not bundle it."
+                      exit 1
+                  fi
+
+            - name: Fetch Steamworks SDK
+              env:
+                  STEAM_SDK_URL: ${{ secrets.STEAM_SDK_URL }}
+              run: bash scripts/fetch-sdk.sh
+
+            - name: Install npm dependencies
+              run: npm ci
+
+            - name: Install cargo-xwin
+              run: cargo install cargo-xwin --locked
+
+            - name: Build Linux
+              run: npm run build -- --target x86_64-unknown-linux-gnu
+
+            - name: Build Windows
+              run: npm run build -- --target x86_64-pc-windows-msvc
+
+            - name: Upload addon binaries
+              uses: actions/upload-artifact@v4
+              with:
+                  name: binaries-windows-linux
+                  path: dist
+                  if-no-files-found: error
+
+    build-mac:
+        name: Build macOS
+        runs-on: macos-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: x86_64-apple-darwin, aarch64-apple-darwin
+
+            - uses: Swatinem/rust-cache@v2
+
+            - name: Require the Steamworks SDK
+              env:
+                  STEAM_SDK_URL: ${{ secrets.STEAM_SDK_URL }}
+              run: |
+                  if [ -z "${STEAM_SDK_URL}" ] && [ -z "${STEAM_SDK_LOCATION:-}" ]; then
+                      echo "::error::Refusing to publish without the Steamworks SDK. Set the STEAM_SDK_URL secret to Valve's SDK zip. This repository does not bundle it."
+                      exit 1
+                  fi
+
+            - name: Fetch Steamworks SDK
+              env:
+                  STEAM_SDK_URL: ${{ secrets.STEAM_SDK_URL }}
+              run: bash scripts/fetch-sdk.sh
+
+            - name: Install npm dependencies
+              run: npm ci
+
+            - name: Build Mac x64
+              run: npm run build -- --target x86_64-apple-darwin
+
+            - name: Build Mac arm64
+              run: npm run build -- --target aarch64-apple-darwin
+
+            - name: Upload addon binaries
+              uses: actions/upload-artifact@v4
+              with:
+                  name: binaries-macos
+                  path: dist
+                  if-no-files-found: error
+
+    publish:
+        name: Publish to npm
+        needs: [build-linux-windows, build-mac]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  registry-url: https://registry.npmjs.org/
+
+            - name: Download builds
+              uses: actions/download-artifact@v4
+              with:
+                  path: dist/
+                  pattern: binaries-*
+                  merge-multiple: true
+
+            - name: Install npm dependencies
+              run: npm ci
+
+            - name: Show package contents
+              run: |
+                  echo "dist:" && find dist -type f
+                  npm pack --dry-run
+                  node -e "
+                    const {execSync}=require('child_process');
+                    const out=execSync('npm pack --dry-run --json',{encoding:'utf8'});
+                    const files=JSON.parse(out)[0].files.map(f=>f.path);
+                    const banned=files.filter(f=>/steam_api|libsteam_api|sdkencryptedappticket|redistributable_bin/i.test(f));
+                    if (banned.length) {
+                      console.error('npm package would include Valve redistributables:', banned);
+                      process.exit(1);
+                    }
+                    const nodes=files.filter(f=>f.endsWith('.node'));
+                    if (!nodes.length) {
+                      console.error('npm package is missing native .node addons');
+                      process.exit(1);
+                    }
+                    console.log('Package files look safe:', files.join('\n'));
+                  "
+
+            - name: Publish
+              run: npm publish --access public
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

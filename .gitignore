@@ -1,0 +1,10 @@
+/target
+/dist
+node_modules
+test/**/package-lock.json
+test/electron/steamworks-electron-test-*
+test/electron/steamworks.js-electron-test-*
+
+# Never commit the Valve Steamworks SDK. Set STEAM_SDK_LOCATION instead.
+/sdk/
+/vendor/steamworks/steamworks-sys/lib/

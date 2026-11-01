@@ -1,0 +1,60 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+jobs:
+    check:
+        name: Lint and SDK-free checks (Node ${{ matrix.node }})
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                node: [22, 24]
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ matrix.node }}
+
+            - name: Setup Rust
+              if: matrix.node == 22
+              uses: dtolnay/rust-toolchain@stable
+              # rust-toolchain.toml selects the channel and rustfmt/clippy.
+
+            - name: Check Rust formatting
+              if: matrix.node == 22
+              run: cargo fmt --all --check
+
+            - name: Install npm dependencies
+              run: npm ci
+
+            - name: Confirm the tree contains no Valve SDK files
+              run: node scripts/check-no-valve-files.js
+
+            - name: SDK path tests
+              run: npm test
+
+            - name: Generate and typecheck declarations
+              run: npm run typecheck
+
+            - name: Native build
+              if: matrix.node == 22
+              env:
+                  STEAM_SDK_URL: ${{ secrets.STEAM_SDK_URL }}
+                  STEAM_SDK_LOCATION: ${{ secrets.STEAM_SDK_LOCATION }}
+              run: |
+                  if [ -z "${STEAM_SDK_URL}" ] && [ -z "${STEAM_SDK_LOCATION}" ]; then
+                      echo "::notice title=Native build skipped::The Valve Steamworks SDK is not available in this CI run. Set the STEAM_SDK_URL repository secret to a URL of the SDK zip from Valve (https://partner.steamgames.com/doc/sdk), or STEAM_SDK_LOCATION on a self-hosted runner. Formatting, the SDK-path tests, and TypeScript checks ran without it. cargo clippy is skipped because steamworks-sys cannot configure the linker without the SDK redistributable."
+                      exit 0
+                  fi
+                  bash scripts/fetch-sdk.sh
+                  # shellcheck disable=SC1091
+                  source "${RUNNER_TEMP:-/tmp}/steam-sdk.env"
+                  cargo clippy --all-targets -- -D warnings
+                  npm run build -- --target x86_64-unknown-linux-gnu

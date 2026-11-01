@@ -1,0 +1,14 @@
+{
+    "name": "steamworks-electron-typescript-test",
+    "private": true,
+    "dependencies": {
+        "@mandate-game/steamworks-electron": "file:../.."
+    },
+    "devDependencies": {
+        "typescript": "5.9.3"
+    },
+    "main": "index.ts",
+    "scripts": {
+        "compile": "tsc --noEmit --strict index.ts"
+    }
+}

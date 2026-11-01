@@ -1,0 +1,9 @@
+/target/
+**/*.rs.bk
+/Cargo.lock
+.idea/
+.vscode/
+*.iml
+
+# Never commit a local copy of the Valve Steamworks SDK.
+/steamworks-sys/lib/
