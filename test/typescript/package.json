@@ -1,11 +1,11 @@
 {
-    "name": "steamworks.js-typescript-test",
+    "name": "steamworks-electron-typescript-test",
     "private": true,
     "dependencies": {
-        "steamworks.js": "../.."
+        "@mandate-game/steamworks-electron": "file:../.."
     },
     "devDependencies": {
-        "typescript": "4.7.4"
+        "typescript": "5.9.3"
     },
     "main": "index.ts",
     "scripts": {

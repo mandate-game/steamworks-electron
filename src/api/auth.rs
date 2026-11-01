@@ -6,8 +6,8 @@ pub mod auth {
 
     use napi::bindgen_prelude::{BigInt, Buffer, Error};
     use steamworks::{
-        networking_types::NetworkingIdentity, AuthSessionTicketResponse, AuthTicket, SteamId,
-        TicketForWebApiResponse,
+        AuthSessionTicketResponse, AuthTicket, SteamId, TicketForWebApiResponse,
+        networking_types::NetworkingIdentity,
     };
     use tokio::sync::oneshot;
 
@@ -74,14 +74,14 @@ pub mod auth {
 
         let callback =
             client.register_callback(move |session_ticket_response: AuthSessionTicketResponse| {
-                if session_ticket_response.ticket == ticket_handle {
-                    if let Some(tx) = tx.take() {
-                        tx.send(match session_ticket_response.result {
-                            Ok(()) => Ok(()),
-                            Err(e) => Err(Error::from_reason(e.to_string())),
-                        })
-                        .unwrap();
-                    }
+                if session_ticket_response.ticket == ticket_handle
+                    && let Some(tx) = tx.take()
+                {
+                    tx.send(match session_ticket_response.result {
+                        Ok(()) => Ok(()),
+                        Err(e) => Err(Error::from_reason(e.to_string())),
+                    })
+                    .unwrap();
                 }
             });
 

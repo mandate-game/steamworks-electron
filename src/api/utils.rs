@@ -22,7 +22,7 @@ pub mod utils {
     #[napi]
     pub fn is_steam_running_on_steam_deck() -> bool {
         let client = crate::client::get_client();
-        client.utils().is_steam_running_on_steam_deck()
+        client.utils().hardware_type() == Some(steamworks::HardwareType::SteamDeck)
     }
 
     #[napi]
@@ -73,11 +73,7 @@ pub mod utils {
             },
         );
 
-        if opened {
-            rx.await.unwrap()
-        } else {
-            None
-        }
+        if opened { rx.await.unwrap() } else { None }
     }
 
     #[napi]
@@ -124,10 +120,6 @@ pub mod utils {
             },
         );
 
-        if opened {
-            rx.await.unwrap()
-        } else {
-            false
-        }
+        if opened { rx.await.unwrap() } else { false }
     }
 }

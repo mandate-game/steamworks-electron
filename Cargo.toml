@@ -1,22 +1,26 @@
 [package]
 name = "steamworksjs"
-version = "0.0.1"
-edition = "2021"
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+description = "N-API bindings over steamworks-rs for Electron and Node.js"
+repository = "https://github.com/mandate-game/steamworks-electron"
+publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "2.16.8", features = ["tokio_rt", "napi6", "serde-json"] }
-napi-derive = "2.16.9"
-lazy_static = "1"
+napi = { version = "3.16.1", features = ["tokio_rt", "serde-json", "napi9"] }
+napi-derive = "3.7.0"
 tokio = { version = "1", features = ["sync", "time"] }
-steamworks = { git = "https://github.com/Noxime/steamworks-rs/", rev = "fbb79635b06b4feea8261e5ca3e8ea3ef42facf9", features = ["serde"] }
+steamworks = { path = "vendor/steamworks", features = ["serde"] }
 serde = "1"
 serde_json = "1"
 
 [build-dependencies]
-napi-build = "2"
+napi-build = "2.6.0"
 
 [profile.release]
 lto = true

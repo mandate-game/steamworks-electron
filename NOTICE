@@ -1,0 +1,31 @@
+steamworks-electron
+Copyright (c) 2026 Mandate Game
+
+This project is a maintained fork of steamworks.js:
+
+    https://github.com/ceifa/steamworks.js
+    Copyright (c) 2022 Gabriel Francisco Dos Santos
+    Licensed under the MIT License. See LICENSE.
+
+The native bindings are built on steamworks-rs:
+
+    https://github.com/Noxime/steamworks-rs
+    Copyright (c) 2018 Matthew Collins and contributors
+    Licensed under the MIT License or the Apache License, Version 2.0.
+    Copies of those licenses are in vendor/steamworks/LICENSE-MIT and
+    vendor/steamworks/LICENSE-APACHE.
+
+A patched copy of steamworks 0.13.1 and steamworks-sys 0.13.0 is vendored
+under vendor/steamworks (upstream git d8114185613be4dbfe4897c8484d0b2670fd3cd7).
+The Valve Steamworks SDK headers, import libraries, and redistributables that
+upstream steamworks-sys bundles under steamworks-sys/lib/steam are not
+included. Obtain the SDK from Valve and set STEAM_SDK_LOCATION. See README.md
+and vendor/steamworks/VENDOR.md.
+
+The Steamworks SDK is a Valve product and is not covered by the MIT license
+of this repository. It is not part of this source tree and it is not part of
+the published npm package. Applications that ship on Steam may redistribute
+the SDK redistributables (steam_api64.dll, steam_api.dll, libsteam_api.so,
+libsteam_api.dylib, and the matching import libraries) with their own build,
+as Valve's Steamworks SDK Access Agreement allows. Those binaries must be
+downloaded from Valve by each developer.

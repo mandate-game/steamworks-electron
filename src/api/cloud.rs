@@ -9,7 +9,16 @@ pub mod cloud {
     #[napi]
     pub struct FileInfo {
         pub name: String,
-        pub size: BigInt,
+        size: BigInt,
+    }
+
+    #[napi]
+    impl FileInfo {
+        // napi-rs 3 cannot export a public BigInt field on a class.
+        #[napi(getter)]
+        pub fn size(&self) -> BigInt {
+            self.size.clone()
+        }
     }
 
     #[napi]

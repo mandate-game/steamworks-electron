@@ -1,58 +1,48 @@
-const path = require('node:path');
-const fs = require('node:fs');
-const child_process = require('node:child_process');
+const path = require('node:path')
+const fs = require('node:fs')
+const childProcess = require('node:child_process')
+const { resolveSdkRoot, targetFor, redistributableFiles, parseBuildArgs } = require('./scripts/sdk-path')
 
-const targets = {
-    ['x86_64-pc-windows-msvc']: {
-        folder: 'win64',
-        files: ['steam_api64.dll', 'steam_api64.lib'],
-        platform: 'win32',
-        arch: 'x64'
-    },
-    ['x86_64-unknown-linux-gnu']: {
-        folder: 'linux64',
-        files: ['libsteam_api.so'],
-        platform: 'linux',
-        arch: 'x64'
-    },
-    ['x86_64-apple-darwin']: {
-        folder: 'osx',
-        files: ['libsteam_api.dylib'],
-        platform: 'darwin',
-        arch: 'x64'
-    },
-    ['aarch64-apple-darwin']: {
-        folder: 'osx',
-        files: ['libsteam_api.dylib'],
-        platform: 'darwin',
-        arch: 'arm64'
-    }
-}
-
-const target = targets[process.argv.at(-1)] || Object.values(targets).find(t => t.platform === process.platform && t.arch === process.arch)
+const { target: requestedTarget, napiArgs } = parseBuildArgs(process.argv.slice(2))
+const sdkRoot = resolveSdkRoot()
+const target = targetFor(requestedTarget)
+const sources = redistributableFiles(sdkRoot, target)
 
 const dist = path.join(__dirname, 'dist', target.folder)
-const redist = path.join(__dirname, 'sdk/redistributable_bin', target.folder)
-target.files.forEach(file => {
-    const [source, dest] = [path.join(redist, file), path.join(dist, file)]
-    try { fs.mkdirSync(path.dirname(dest), { recursive: true }) } catch { }
-    fs.copyFileSync(source, dest)
-})
+fs.mkdirSync(dist, { recursive: true })
 
-const relative = path.relative(process.cwd(), dist)
+// Local builds copy the redistributable next to the addon so the dynamic
+// linker can find it (rpath $ORIGIN on Linux). These files are Valve's and
+// are excluded from the npm package; shipping apps copy them from the SDK
+// into their own build.
+for (const source of sources) {
+    fs.copyFileSync(source, path.join(dist, path.basename(source)))
+}
+
+const napiBin = path.join(
+    __dirname,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'napi.cmd' : 'napi',
+)
+
 const params = [
     'build',
     '--platform',
     '--no-dts-header',
-    '--js', 'false',
-    '--dts', '../../client.d.ts',
-    relative,
-    process.argv.slice(2).join(' ')
+    '--no-js',
+    '--dts',
+    path.join('..', '..', 'client.d.ts'),
+    '--output-dir',
+    path.relative(process.cwd(), dist),
+    ...napiArgs,
 ]
 
-child_process.spawn('napi', params, { stdio: 'inherit', shell: true })
-    .on('exit', err => {
-        if (err) {
-            throw err;
-        }
-    })
+const child = childProcess.spawn(napiBin, params, { stdio: 'inherit' })
+child.on('exit', (code, signal) => {
+    if (signal) {
+        process.kill(process.pid, signal)
+        return
+    }
+    process.exit(code == null ? 1 : code)
+})

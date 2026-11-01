@@ -1,5 +1,5 @@
 const { app, BrowserWindow } = require('electron')
-const steamworks = require('steamworks.js')
+const steamworks = require('@mandate-game/steamworks-electron')
 
 function createWindow() {
     const mainWindow = new BrowserWindow({

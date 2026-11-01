@@ -1,9 +1,7 @@
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use steamworks::Client;
 
-lazy_static! {
-    static ref STEAM_CLIENT: Mutex<Option<Client>> = Mutex::new(None);
-}
+static STEAM_CLIENT: LazyLock<Mutex<Option<Client>>> = LazyLock::new(|| Mutex::new(None));
 
 pub fn has_client() -> bool {
     STEAM_CLIENT.lock().unwrap().is_some()

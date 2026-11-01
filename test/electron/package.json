@@ -1,12 +1,12 @@
 {
-    "name": "steamworks.js-electron-test",
+    "name": "steamworks-electron-test",
     "private": true,
     "dependencies": {
-        "steamworks.js": "../.."
+        "@mandate-game/steamworks-electron": "file:../.."
     },
     "devDependencies": {
-        "electron": "24.2.0",
-        "electron-packager": "17.1.1"
+        "electron": "45.2.1",
+        "electron-packager": "17.1.2"
     },
     "main": "main.js",
     "scripts": {

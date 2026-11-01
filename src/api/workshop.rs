@@ -2,12 +2,10 @@ use napi_derive::napi;
 
 #[napi]
 pub mod workshop {
-    use napi::bindgen_prelude::{BigInt, Error};
-    use napi::threadsafe_function::ErrorStrategy;
-    use napi::threadsafe_function::ThreadsafeFunction;
+    use napi::bindgen_prelude::{BigInt, Error, FnArgs, Function};
     use napi::threadsafe_function::ThreadsafeFunctionCallMode;
     use std::path::Path;
-    use steamworks::{ClientManager, FileType, PublishedFileId, UpdateHandle};
+    use steamworks::{FileType, PublishedFileId, UpdateHandle};
     use tokio::sync::oneshot;
 
     #[napi(object)]
@@ -61,11 +59,11 @@ pub mod workshop {
     impl UgcUpdate {
         pub fn submit(
             self,
-            mut update: UpdateHandle<ClientManager>,
+            mut update: UpdateHandle,
             callback: impl FnOnce(Result<(PublishedFileId, bool), steamworks::SteamError>)
-                + Send
-                + 'static,
-        ) -> steamworks::UpdateWatchHandle<ClientManager> {
+            + Send
+            + 'static,
+        ) -> steamworks::UpdateWatchHandle {
             if let Some(title) = self.title {
                 update = update.title(title.as_str());
             }
@@ -206,23 +204,27 @@ pub mod workshop {
         update_details: UgcUpdate,
         app_id: Option<u32>,
 
-        #[napi(ts_arg_type = "(data: UgcResult) => void")] success_callback: napi::JsFunction,
+        #[napi(ts_arg_type = "(data: UgcResult) => void")] success_callback: Function<
+            FnArgs<(UgcResult,)>,
+            (),
+        >,
 
-        #[napi(ts_arg_type = "(err: any) => void")] error_callback: napi::JsFunction,
+        #[napi(ts_arg_type = "(err: any) => void")] error_callback: Function<FnArgs<(Error,)>, ()>,
 
         #[napi(ts_arg_type = "(data: UpdateProgress) => void")] progress_callback: Option<
-            napi::JsFunction,
+            Function<FnArgs<(UpdateProgress,)>, ()>,
         >,
 
         progress_callback_interval_ms: Option<u32>,
-    ) {
-        let success_callback: ThreadsafeFunction<UgcResult, ErrorStrategy::Fatal> =
-            success_callback
-                .create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))
-                .unwrap();
-        let error_callback: ThreadsafeFunction<Error, ErrorStrategy::Fatal> = error_callback
-            .create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))
-            .unwrap();
+    ) -> Result<(), Error> {
+        let success_callback = success_callback
+            .build_threadsafe_function()
+            .callee_handled::<false>()
+            .build()?;
+        let error_callback = error_callback
+            .build_threadsafe_function()
+            .callee_handled::<false>()
+            .build()?;
 
         let client = crate::client::get_client();
 
@@ -237,45 +239,54 @@ pub mod workshop {
 
             let update_watch_handle = update_details.submit(update_handle, move |result| {
                 match result {
-                    Ok((item_id, needs_to_accept_agreement)) => success_callback.call(
-                        UgcResult {
-                            item_id: BigInt::from(item_id.0),
-                            needs_to_accept_agreement,
-                        },
-                        ThreadsafeFunctionCallMode::Blocking,
-                    ),
-                    Err(e) => error_callback.call(
-                        Error::from_reason(e.to_string()),
-                        ThreadsafeFunctionCallMode::Blocking,
-                    ),
+                    Ok((item_id, needs_to_accept_agreement)) => {
+                        success_callback.call(
+                            (UgcResult {
+                                item_id: BigInt::from(item_id.0),
+                                needs_to_accept_agreement,
+                            },)
+                                .into(),
+                            ThreadsafeFunctionCallMode::Blocking,
+                        );
+                    }
+                    Err(e) => {
+                        error_callback.call(
+                            (Error::from_reason(e.to_string()),).into(),
+                            ThreadsafeFunctionCallMode::Blocking,
+                        );
+                    }
                 };
             });
 
             if let Some(progress_callback) = progress_callback {
-                let progress_callback: ThreadsafeFunction<UpdateProgress, ErrorStrategy::Fatal> =
-                    progress_callback
-                        .create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))
-                        .unwrap();
+                let progress_callback = progress_callback
+                    .build_threadsafe_function()
+                    .callee_handled::<false>()
+                    .build()?;
 
-                std::thread::spawn(move || loop {
-                    let (status, progress, total) = update_watch_handle.progress();
-                    let value = UpdateProgress {
-                        status: status.into(),
-                        progress: BigInt::from(progress),
-                        total: BigInt::from(total),
-                    };
-                    progress_callback.call(value, ThreadsafeFunctionCallMode::Blocking);
-                    match status {
-                        steamworks::UpdateStatus::Invalid => break,
-                        steamworks::UpdateStatus::CommittingChanges => break,
-                        _ => (),
+                std::thread::spawn(move || {
+                    loop {
+                        let (status, progress, total) = update_watch_handle.progress();
+                        let value = UpdateProgress {
+                            status: status.into(),
+                            progress: BigInt::from(progress),
+                            total: BigInt::from(total),
+                        };
+                        progress_callback
+                            .call((value,).into(), ThreadsafeFunctionCallMode::Blocking);
+                        match status {
+                            steamworks::UpdateStatus::Invalid => break,
+                            steamworks::UpdateStatus::CommittingChanges => break,
+                            _ => (),
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            progress_callback_interval_ms.unwrap_or(1000) as u64,
+                        ));
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(
-                        progress_callback_interval_ms.unwrap_or(1000) as u64,
-                    ));
                 });
             }
         };
+        Ok(())
     }
 
     /// Subscribe to a workshop item. It will be downloaded and installed as soon as possible.
@@ -396,7 +407,8 @@ pub mod workshop {
     #[napi]
     pub fn get_subscribed_items() -> Vec<BigInt> {
         let client = crate::client::get_client();
-        let result = client.ugc().subscribed_items();
+        // `false` keeps the pre-0.13 behavior: locally disabled items are omitted.
+        let result = client.ugc().subscribed_items(false);
 
         result
             .iter()
@@ -410,13 +422,13 @@ pub mod workshop {
     pub async fn delete_item(item_id: BigInt) -> Result<(), Error> {
         let client = crate::client::get_client();
         let (tx, rx) = oneshot::channel();
-    
+
         client
             .ugc()
             .delete_item(PublishedFileId(item_id.get_u64().1), |result| {
                 tx.send(result).unwrap();
             });
-    
+
         let result = rx.await.unwrap();
         match result {
             Ok(()) => Ok(()),
